@@ -57,7 +57,7 @@ curl -fsSL https://raw.githubusercontent.com/Joanna8521/openclaw-install_ecom/ma
 
 ---
 
-### 電商營運 E01–E10
+### 電商營運 E01–E18
 
 | Skill | 說明 |
 |-------|------|
@@ -71,13 +71,6 @@ curl -fsSL https://raw.githubusercontent.com/Joanna8521/openclaw-install_ecom/ma
 | 🎯 E08 | 促銷活動規劃 |
 | 🏆 E09 | 暢銷榜追蹤 |
 | 📢 E10 | 廣告成效監控 |
-
----
-
-### 行銷自動化 E11–E38
-
-| Skill | 說明 |
-|-------|------|
 | ⚖️ E11 | 跨平台比價 |
 | ✅ E12 | 商品上架品質檢查 |
 | 📦 E13 | 退貨原因分析 |
@@ -86,6 +79,13 @@ curl -fsSL https://raw.githubusercontent.com/Joanna8521/openclaw-install_ecom/ma
 | 🌏 E16 | 跨境稅務試算 |
 | 💰 E17 | 利潤計算器 |
 | 🏭 E18 | 採購管理 |
+
+---
+
+### 行銷自動化 E19–E38
+
+| Skill | 說明 |
+|-------|------|
 | 📣 E19 | 廣告文案生成 |
 | 📅 E20 | 行銷行事曆 |
 | 📧 E21 | EDM 電子報生成 |
