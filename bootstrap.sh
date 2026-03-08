@@ -279,7 +279,7 @@ if [ "$GOOGLE_CHOICE" = "1" ]; then
     GOOGLE_CREDENTIALS_PATH=""
   fi
 else
-  print_warn "跳過 Google 設定，稍後可執行 python3 openclaw setup google 來設定"
+  print_warn "跳過 Google 設定，稍後可執行 node /opt/openclaw/openclaw.mjs setup 來設定"
 fi
 
 # =============================================================================
@@ -312,7 +312,7 @@ print_step "開始自動安裝（請勿關閉視窗）"
 echo -e "  📦 更新系統套件..."
 sudo apt-get update -qq
 sudo apt-get install -y -qq \
-  python3 python3-pip python3-venv \
+  nodejs \
   nodejs npm \
   git curl wget jq \
   nginx certbot \
@@ -321,14 +321,8 @@ print_ok "系統套件安裝完成"
 
 # ── Python 3.11 ───────────────────────────────────────
 echo -e "  🐍 確認 Python 3.11..."
-if ! python3 --version 2>/dev/null | grep -q "3.11"; then
-  sudo apt-get install -y -qq software-properties-common
-  sudo add-apt-repository ppa:deadsnakes/ppa -y
-  sudo apt-get update -qq
-  sudo apt-get install -y -qq python3.11 python3.11-venv python3.11-dev
-  sudo update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1
-fi
-print_ok "Python $(python3 --version) 就緒"
+# Node.js installed above
+print_ok "Node.js $(node --version) 就緒"
 
 # ── 服務使用者 ────────────────────────────────────────
 if ! id "$SERVICE_USER" &>/dev/null; then
@@ -363,11 +357,12 @@ fi
 
 # ── Python 虛擬環境 ───────────────────────────────────
 echo -e "  🐍 建立 Python 虛擬環境..."
-sudo -u "$SERVICE_USER" python3 -m venv "$INSTALL_DIR/venv"
-sudo -u "$SERVICE_USER" "$INSTALL_DIR/venv/bin/pip" install --upgrade pip -q
-sudo -u "$SERVICE_USER" "$INSTALL_DIR/venv/bin/pip" install \
-  -e "$INSTALL_DIR" -q
-  print_ok "Python 套件安裝完成"
+# Install Node deps and build
+cd "$INSTALL_DIR"
+sudo npm install -g pnpm -q
+sudo pnpm install -q
+sudo pnpm run build
+print_ok "Python 套件安裝完成"
 
 # ── 設定檔 ────────────────────────────────────────────
 echo -e "  🔑 寫入設定檔..."
@@ -401,7 +396,7 @@ skills:
 # ── 伺服器設定 ───────────────────────────────────────
 server:
   host: "0.0.0.0"
-  port: 5000
+  port: 18789
   workers: 2
 EOF
 
@@ -429,7 +424,7 @@ skills:
 
 server:
   host: "0.0.0.0"
-  port: 5000
+  port: 18789
   workers: 2
 EOF
 
@@ -458,7 +453,7 @@ server {
 
     # LINE Webhook
     location /webhook {
-        proxy_pass http://127.0.0.1:5000/webhook;
+        proxy_pass http://127.0.0.1:18789/webhook;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
@@ -468,7 +463,7 @@ server {
 
     # API
     location /api/ {
-        proxy_pass http://127.0.0.1:5000/api/;
+        proxy_pass http://127.0.0.1:18789/api/;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_read_timeout 60s;
@@ -476,7 +471,7 @@ server {
 
     # 健康檢查
     location /health {
-        proxy_pass http://127.0.0.1:5000/health;
+        proxy_pass http://127.0.0.1:18789/health;
     }
 
     location / {
@@ -510,7 +505,7 @@ After=network.target
 Type=simple
 User=${SERVICE_USER}
 WorkingDirectory=${INSTALL_DIR}
-ExecStart=${INSTALL_DIR}/venv/bin/python main.py
+ExecStart=/usr/bin/node /opt/openclaw/openclaw.mjs gateway
 Restart=always
 RestartSec=5
 StandardOutput=journal
@@ -525,20 +520,23 @@ sudo systemctl enable openclaw -q
 sudo systemctl start openclaw
 sleep 3
 print_ok "systemd 服務啟動完成"
+# Configure openclaw
+sudo node /opt/openclaw/openclaw.mjs setup
+sudo node /opt/openclaw/openclaw.mjs config set gateway.mode local
 
 # ── 安裝所有 Skill ────────────────────────────────────
 echo -e "  🦞 安裝 C01–C10 通用基礎 Skill..."
 sudo -u "$SERVICE_USER" \
-  "$INSTALL_DIR/venv/bin/python3" openclaw install \
+  node /opt/openclaw/openclaw.mjs install \
   c01 c02 c03 c04 c05 c06 c07 c08 c09 c10 -q 2>/dev/null && \
   print_ok "C01–C10 安裝完成" || \
-  print_warn "C01–C10 安裝遇到問題，稍後可手動執行 python3 openclaw install c01 c02 ..."
+  print_warn "C01–C10 安裝遇到問題，稍後可手動執行 node /opt/openclaw/openclaw.mjs install c01 c02 ..."
 
 echo -e "  🦞 安裝 E01–E88 電商 Skill（約 2–3 分鐘）..."
 sudo -u "$SERVICE_USER" \
-  "$INSTALL_DIR/venv/bin/python3" openclaw install --all-ecom -q 2>/dev/null && \
+  node /opt/openclaw/openclaw.mjs install --all-ecom -q 2>/dev/null && \
   print_ok "E01–E88 安裝完成" || \
-  print_warn "E01–E88 安裝遇到問題，稍後可手動執行 python3 openclaw install --all-ecom"
+  print_warn "E01–E88 安裝遇到問題，稍後可手動執行 node /opt/openclaw/openclaw.mjs install --all-ecom"
 
 # ── 健康檢查 ──────────────────────────────────────────
 echo -e "  🔍 健康檢查..."
@@ -548,7 +546,7 @@ NGINX_STATUS=$(sudo systemctl is-active nginx 2>/dev/null)
 HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
   --max-time 5 "http://127.0.0.1/health" 2>/dev/null || echo "000")
 SKILL_COUNT=$(sudo -u "$SERVICE_USER" \
-  "$INSTALL_DIR/venv/bin/python3" openclaw list 2>/dev/null | \
+  node /opt/openclaw/openclaw.mjs list 2>/dev/null | \
   grep -c "✅" || echo "0")
 
 # =============================================================================
@@ -607,13 +605,13 @@ echo ""
 echo -e "  ${DIM}查看龍蝦狀態    sudo systemctl status openclaw${NC}"
 echo -e "  ${DIM}重新啟動龍蝦    sudo systemctl restart openclaw${NC}"
 echo -e "  ${DIM}查看即時 log    sudo journalctl -u openclaw -f${NC}"
-echo -e "  ${DIM}查看所有 Skill  python3 openclaw list${NC}"
+echo -e "  ${DIM}查看所有 Skill  node /opt/openclaw/openclaw.mjs list${NC}"
 echo -e "  ${DIM}更新 Skills     cd ${INSTALL_DIR}/skills && git pull${NC}"
 echo -e "  ${DIM}更新主程式      cd ${INSTALL_DIR} && git pull${NC}"
 echo ""
 echo -e "  ${BOLD}── 測試龍蝦是否正常 ──────────────────────────${NC}"
 echo ""
-echo -e "  ${DIM}curl -X POST http://localhost:5000/chat \\${NC}"
+echo -e "  ${DIM}curl -X POST http://localhost:18789/chat \\${NC}"
 echo -e "  ${DIM}  -H 'Content-Type: application/json' \\${NC}"
 echo -e "  ${DIM}  -d '{\"message\": \"你好\"}'${NC}"
 echo ""
