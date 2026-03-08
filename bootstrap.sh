@@ -366,7 +366,8 @@ echo -e "  🐍 建立 Python 虛擬環境..."
 sudo -u "$SERVICE_USER" python3 -m venv "$INSTALL_DIR/venv"
 sudo -u "$SERVICE_USER" "$INSTALL_DIR/venv/bin/pip" install --upgrade pip -q
 sudo -u "$SERVICE_USER" "$INSTALL_DIR/venv/bin/pip" install \
-  -e "$INSTALL_DIR" -qprint_ok "Python 套件安裝完成"
+  -e "$INSTALL_DIR" -q
+  print_ok "Python 套件安裝完成"
 
 # ── 設定檔 ────────────────────────────────────────────
 echo -e "  🔑 寫入設定檔..."
