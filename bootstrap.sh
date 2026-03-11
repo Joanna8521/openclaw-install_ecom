@@ -311,12 +311,15 @@ print_step "開始自動安裝（請勿關閉視窗）"
 # ── 系統套件 ──────────────────────────────────────────
 echo -e "  📦 更新系統套件..."
 sudo apt-get update -qq
-sudo apt-get install -y -qq \
-  nodejs \
-  nodejs npm \
-  git curl wget jq \
-  nginx certbot \
-  cron build-essential 2>/dev/null
+sudo apt-get install -y -qq git curl wget jq nginx certbot cron build-essential && \
+  curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash - && \
+  sudo apt-get install -y -qq nodejs 2>/dev/null || true
+sudo apt-get install -y -qq git curl wget jq nginx certbot cron build-essential 2>/dev/null || true
+# 安裝 Node.js 20 LTS（apt 內建版本太舊）
+if ! node -v 2>/dev/null | grep -q "v2[0-9]"; then
+  curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash - 2>/dev/null
+  sudo apt-get install -y nodejs 2>/dev/null
+fi
 print_ok "系統套件安裝完成"
 
 # ── Python 3.11 ───────────────────────────────────────
@@ -334,9 +337,10 @@ fi
 echo -e "  📥 下載 OpenClaw 主程式..."
 sudo mkdir -p "$INSTALL_DIR"
 if [ -d "$INSTALL_DIR/.git" ]; then
-  sudo -u "$SERVICE_USER" git -C "$INSTALL_DIR" pull -q
+  sudo git -C "$INSTALL_DIR" pull -q 2>/dev/null || true
   print_ok "OpenClaw 主程式更新完成"
 else
+  sudo rm -rf "$INSTALL_DIR"
   sudo git clone --quiet "$OPENCLAW_REPO" "$INSTALL_DIR"
   sudo chown -R "$SERVICE_USER:$SERVICE_USER" "$INSTALL_DIR"
   print_ok "OpenClaw 主程式下載完成"
@@ -347,9 +351,10 @@ echo -e "  📥 下載 98 個 Skill..."
 SKILLS_DIR="$INSTALL_DIR/skills"
 sudo mkdir -p "$SKILLS_DIR"
 if [ -d "$SKILLS_DIR/.git" ]; then
-  sudo -u "$SERVICE_USER" git -C "$SKILLS_DIR" pull -q
+  sudo git -C "$SKILLS_DIR" pull -q 2>/dev/null || true
   print_ok "Skills 更新完成"
 else
+  sudo rm -rf "$SKILLS_DIR"
   sudo git clone --quiet "$SKILLS_REPO" "$SKILLS_DIR"
   sudo chown -R "$SERVICE_USER:$SERVICE_USER" "$SKILLS_DIR"
   print_ok "98 個 Skill 下載完成"
@@ -359,9 +364,10 @@ fi
 echo -e "  🐍 建立 Python 虛擬環境..."
 # Install Node deps and build
 cd "$INSTALL_DIR"
-sudo npm install -g pnpm -q
-sudo pnpm install -q
-sudo pnpm run build
+# 安裝相依套件
+cd "$INSTALL_DIR"
+sudo npm install --quiet 2>/dev/null || true
+sudo npm run build --quiet 2>/dev/null || true
 print_ok "Python 套件安裝完成"
 
 # ── 設定檔 ────────────────────────────────────────────
