@@ -66,7 +66,7 @@ if ! command -v oci &>/dev/null; then
   print_err "找不到 oci 指令，請確認你在 Oracle Cloud Shell 裡執行這個腳本"
 fi
 
-TENANCY_ID=$(oci iam tenancy get --query 'data.id' --raw-output 2>/dev/null)
+TENANCY_ID=$(oci iam tenancy get --tenancy-id "$OCI_TENANCY" --query 'data.id' --raw-output 2>/dev/null)
 if [ -z "$TENANCY_ID" ]; then
   print_err "無法取得 Tenancy ID，請確認 Cloud Shell 已正確載入"
 fi
