@@ -312,13 +312,13 @@ print_step "開始自動安裝（請勿關閉視窗）"
 echo -e "  📦 更新系統套件..."
 sudo apt-get update -qq
 sudo apt-get install -y -qq git curl wget jq nginx certbot cron build-essential && \
-  curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash - && \
+  curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash - && \
   sudo apt-get install -y -qq nodejs 2>/dev/null || true
 sudo apt-get install -y -qq git curl wget jq nginx certbot cron build-essential 2>/dev/null || true
 # 安裝 Node.js 20 LTS（移除舊版衝突套件後安裝）
 if ! node -v 2>/dev/null | grep -q "v2[0-9]"; then
   sudo apt-get remove -y libnode-dev libnode72 nodejs 2>/dev/null || true
-  curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash - 2>/dev/null
+  curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash - 2>/dev/null
   sudo apt-get install -y nodejs 2>/dev/null
 fi
 print_ok "系統套件安裝完成"
