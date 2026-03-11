@@ -375,39 +375,7 @@ print_ok "Python 套件安裝完成"
 echo -e "  🔑 寫入設定檔..."
 sudo mkdir -p "$INSTALL_DIR/config"
 
-sudo tee "$INSTALL_DIR/config/config.yml" > /dev/null << EOF
-# OpenClaw 設定檔
-# 修改後執行 sudo systemctl restart openclaw 生效
-
-# ── AI 引擎設定 ──────────────────────────────────────
-ai:
-  provider: "${AI_PROVIDER}"     # claude / gemini / openai / pending
-  claude_api_key: "${AI_PROVIDER == "claude" && echo "$AI_API_KEY" || echo ""}"
-  gemini_api_key: "${AI_PROVIDER == "gemini" && echo "$AI_API_KEY" || echo ""}"
-  openai_api_key: "${AI_PROVIDER == "openai" && echo "$AI_API_KEY" || echo ""}"
-
-# ── LINE Bot 設定 ────────────────────────────────────
-line:
-  channel_secret: "${LINE_CHANNEL_SECRET}"
-  access_token: "${LINE_ACCESS_TOKEN}"
-
-# ── Google 服務設定 ──────────────────────────────────
-google:
-  credentials_path: "${GOOGLE_CREDENTIALS_PATH}"
-
-# ── Skills 路徑 ──────────────────────────────────────
-skills:
-  path: "${INSTALL_DIR}/skills"
-  enabled: true
-
-# ── 伺服器設定 ───────────────────────────────────────
-server:
-  host: "0.0.0.0"
-  port: 18789
-  workers: 2
-EOF
-
-# 修正 YAML 裡 bash 條件判斷語法（直接用已設好的變數）
+# 先計算各 AI key 值
 sudo tee "$INSTALL_DIR/config/config.yml" > /dev/null << EOF
 # OpenClaw 設定檔
 # 修改後執行 sudo systemctl restart openclaw 生效
