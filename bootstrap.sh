@@ -117,30 +117,36 @@ done
 # =============================================================================
 print_step "第一步：選擇你的 AI 引擎"
 
-echo -e "  OpenClaw 支援三種 AI 引擎，請選擇你要使用的："
+echo -e "  OpenClaw 支援多種 AI 引擎，請選擇你要使用的："
 echo ""
-echo -e "  ${BOLD}1.  Claude${NC}  （Anthropic，推薦，理解繁體中文最佳）"
-echo -e "  ${BOLD}2.  Gemini${NC}  （Google，有免費方案）"
-echo -e "  ${BOLD}3.  OpenAI${NC}  （GPT-4，最廣泛使用）"
-echo -e "  ${BOLD}4.  暫時跳過${NC}（之後在 LINE 對話裡設定）"
+echo -e "  ${BOLD}1.  Claude${NC}      （Anthropic，推薦，繁體中文最佳）"
+echo -e "  ${BOLD}2.  Gemini${NC}      （Google，有免費方案）"
+echo -e "  ${BOLD}3.  OpenAI${NC}      （GPT-4o，最廣泛使用）"
+echo -e "  ${BOLD}4.  DeepSeek${NC}    （中國模型，性價比高）"
+echo -e "  ${BOLD}5.  Kimi${NC}        （Moonshot AI，長上下文）"
+echo -e "  ${BOLD}6.  MiniMax${NC}     （MiniMax，多模態支援）"
+echo -e "  ${BOLD}7.  自訂${NC}        （OpenAI 相容 API）"
+echo -e "  ${BOLD}8.  暫時跳過${NC}    （之後再設定）"
 echo ""
 
 while true; do
-  ask "請輸入選項（1-4）" AI_CHOICE
+  ask "請輸入選項（1-8）" AI_CHOICE
   case "$AI_CHOICE" in
-    1|2|3|4) break ;;
-    *) print_warn "請輸入 1、2、3 或 4" ;;
+    1|2|3|4|5|6|7|8) break ;;
+    *) print_warn "請輸入 1 到 8 的數字" ;;
   esac
 done
 
 AI_PROVIDER=""
 AI_API_KEY=""
+AI_BASE_URL=""
+AI_MODEL=""
 
 case "$AI_CHOICE" in
   1)
-    AI_PROVIDER="claude"
+    AI_PROVIDER="anthropic"
     echo ""
-    echo -e "  ${DIM}Claude API Key 取得方式：https://console.anthropic.com/${NC}"
+    echo -e "  ${DIM}Claude API Key 取得：https://console.anthropic.com/${NC}"
     echo -e "  ${DIM}格式以 sk-ant- 開頭${NC}"
     echo ""
     while true; do
@@ -149,8 +155,7 @@ case "$AI_CHOICE" in
         print_ok "Claude API Key 格式正確"
         break
       else
-        print_warn "格式不對，Claude Key 應以 sk-ant- 開頭，請重新輸入"
-        echo -e "  ${DIM}（如果還沒有，按 Enter 跳過，之後再設定）${NC}"
+        print_warn "格式不對，應以 sk-ant- 開頭"
         read -s -p "  ➤ Claude API Key（留空跳過）：" AI_API_KEY
         echo ""
         [ -z "$AI_API_KEY" ] && break
@@ -158,9 +163,9 @@ case "$AI_CHOICE" in
     done
     ;;
   2)
-    AI_PROVIDER="gemini"
+    AI_PROVIDER="google"
     echo ""
-    echo -e "  ${DIM}Gemini API Key 取得方式：https://aistudio.google.com/app/apikey${NC}"
+    echo -e "  ${DIM}Gemini API Key 取得：https://aistudio.google.com/app/apikey${NC}"
     echo -e "  ${DIM}格式以 AIza 開頭${NC}"
     echo ""
     while true; do
@@ -169,7 +174,7 @@ case "$AI_CHOICE" in
         print_ok "Gemini API Key 格式正確"
         break
       else
-        print_warn "格式不對，Gemini Key 應以 AIza 開頭，請重新輸入"
+        print_warn "格式不對，應以 AIza 開頭"
         read -s -p "  ➤ Gemini API Key（留空跳過）：" AI_API_KEY
         echo ""
         [ -z "$AI_API_KEY" ] && break
@@ -179,7 +184,7 @@ case "$AI_CHOICE" in
   3)
     AI_PROVIDER="openai"
     echo ""
-    echo -e "  ${DIM}OpenAI API Key 取得方式：https://platform.openai.com/api-keys${NC}"
+    echo -e "  ${DIM}OpenAI API Key 取得：https://platform.openai.com/api-keys${NC}"
     echo -e "  ${DIM}格式以 sk- 開頭${NC}"
     echo ""
     while true; do
@@ -188,7 +193,7 @@ case "$AI_CHOICE" in
         print_ok "OpenAI API Key 格式正確"
         break
       else
-        print_warn "格式不對，OpenAI Key 應以 sk- 開頭，請重新輸入"
+        print_warn "格式不對，應以 sk- 開頭"
         read -s -p "  ➤ OpenAI API Key（留空跳過）：" AI_API_KEY
         echo ""
         [ -z "$AI_API_KEY" ] && break
@@ -196,8 +201,71 @@ case "$AI_CHOICE" in
     done
     ;;
   4)
+    AI_PROVIDER="openai"
+    AI_BASE_URL="https://api.deepseek.com"
+    AI_MODEL="deepseek-chat"
+    echo ""
+    echo -e "  ${DIM}DeepSeek API Key 取得：https://platform.deepseek.com/${NC}"
+    echo -e "  ${DIM}格式以 sk- 開頭${NC}"
+    echo ""
+    while true; do
+      ask_secret "DeepSeek API Key" AI_API_KEY
+      if [[ "$AI_API_KEY" == sk-* ]]; then
+        print_ok "DeepSeek API Key 格式正確"
+        break
+      else
+        print_warn "格式不對，應以 sk- 開頭"
+        read -s -p "  ➤ DeepSeek API Key（留空跳過）：" AI_API_KEY
+        echo ""
+        [ -z "$AI_API_KEY" ] && break
+      fi
+    done
+    ;;
+  5)
+    AI_PROVIDER="openai"
+    AI_BASE_URL="https://api.moonshot.cn/v1"
+    AI_MODEL="moonshot-v1-128k"
+    echo ""
+    echo -e "  ${DIM}Kimi API Key 取得：https://platform.moonshot.cn/${NC}"
+    echo -e "  ${DIM}格式以 sk- 開頭${NC}"
+    echo ""
+    while true; do
+      ask_secret "Kimi API Key" AI_API_KEY
+      if [[ "$AI_API_KEY" == sk-* ]]; then
+        print_ok "Kimi API Key 格式正確"
+        break
+      else
+        print_warn "格式不對，應以 sk- 開頭"
+        read -s -p "  ➤ Kimi API Key（留空跳過）：" AI_API_KEY
+        echo ""
+        [ -z "$AI_API_KEY" ] && break
+      fi
+    done
+    ;;
+  6)
+    AI_PROVIDER="openai"
+    AI_BASE_URL="https://api.minimax.chat/v1"
+    AI_MODEL="abab6.5s-chat"
+    echo ""
+    echo -e "  ${DIM}MiniMax API Key 取得：https://api.minimax.chat/${NC}"
+    echo -e "  ${DIM}格式以 eyJ 開頭${NC}"
+    echo ""
+    ask_secret "MiniMax API Key" AI_API_KEY
+    [ -n "$AI_API_KEY" ] && print_ok "MiniMax API Key 已輸入"
+    ;;
+  7)
+    AI_PROVIDER="openai"
+    echo ""
+    echo -e "  ${DIM}任何相容 OpenAI API 格式的服務都可以用（如 Ollama、Azure OpenAI 等）${NC}"
+    echo ""
+    ask "API Base URL（例如 http://localhost:11434/v1）" AI_BASE_URL
+    ask "Model 名稱（例如 llama3）" AI_MODEL
+    ask_secret "API Key（沒有可留空）" AI_API_KEY
+    print_ok "自訂 API 設定完成"
+    ;;
+  8)
     AI_PROVIDER="pending"
-    print_warn "跳過 AI 金鑰，安裝完成後可在 LINE 對話輸入「/設定 AI金鑰」來設定"
+    print_warn "跳過，安裝完成後可重新執行 sudo node /opt/openclaw/openclaw.mjs configure 來設定"
     ;;
 esac
 
@@ -291,10 +359,14 @@ echo -e "  ${BOLD}安裝目錄：${NC}${INSTALL_DIR}"
 echo ""
 echo -e "  ${BOLD}AI 引擎：${NC}"
 case "$AI_CHOICE" in
-  1) echo -e "    Claude  $([ -n "$AI_API_KEY" ] && echo "✅ Key 已設定" || echo "⚠️  待設定")" ;;
-  2) echo -e "    Gemini  $([ -n "$AI_API_KEY" ] && echo "✅ Key 已設定" || echo "⚠️  待設定")" ;;
-  3) echo -e "    OpenAI  $([ -n "$AI_API_KEY" ] && echo "✅ Key 已設定" || echo "⚠️  待設定")" ;;
-  4) echo -e "    ⚠️  待設定" ;;
+  1) echo -e "    Claude    $([ -n "$AI_API_KEY" ] && echo "✅ Key 已設定" || echo "⚠️  待設定")" ;;
+  2) echo -e "    Gemini    $([ -n "$AI_API_KEY" ] && echo "✅ Key 已設定" || echo "⚠️  待設定")" ;;
+  3) echo -e "    OpenAI    $([ -n "$AI_API_KEY" ] && echo "✅ Key 已設定" || echo "⚠️  待設定")" ;;
+  4) echo -e "    DeepSeek  $([ -n "$AI_API_KEY" ] && echo "✅ Key 已設定" || echo "⚠️  待設定")" ;;
+  5) echo -e "    Kimi      $([ -n "$AI_API_KEY" ] && echo "✅ Key 已設定" || echo "⚠️  待設定")" ;;
+  6) echo -e "    MiniMax   $([ -n "$AI_API_KEY" ] && echo "✅ Key 已設定" || echo "⚠️  待設定")" ;;
+  7) echo -e "    自訂 API  $([ -n "$AI_BASE_URL" ] && echo "✅ 已設定（$AI_BASE_URL）" || echo "⚠️  待設定")" ;;
+  8) echo -e "    ⚠️  待設定" ;;
 esac
 echo ""
 echo -e "  ${BOLD}Skills 存取碼：${NC}✅ 已驗證（github_pat_****${SKILLS_TOKEN: -6})"
@@ -500,10 +572,24 @@ sudo chown -R root:root "${INSTALL_DIR}/extensions" 2>/dev/null || true
 sudo node /opt/openclaw/openclaw.mjs setup
 sudo node /opt/openclaw/openclaw.mjs config set gateway.mode local
 
-# 設定 Anthropic API Key
-if [ -n "$AI_API_KEY" ] && [ "$AI_PROVIDER" = "claude" ]; then
-  sudo node /opt/openclaw/openclaw.mjs config set model.providers.anthropic.apiKey "$AI_API_KEY"
-  print_ok "Claude API Key 已寫入設定"
+# 寫入 AI 設定
+if [ -n "$AI_API_KEY" ]; then
+  case "$AI_PROVIDER" in
+    anthropic)
+      sudo node /opt/openclaw/openclaw.mjs config set model.providers.anthropic.apiKey "$AI_API_KEY"
+      print_ok "Claude API Key 已寫入設定"
+      ;;
+    google)
+      sudo node /opt/openclaw/openclaw.mjs config set model.providers.google.apiKey "$AI_API_KEY"
+      print_ok "Gemini API Key 已寫入設定"
+      ;;
+    openai)
+      sudo node /opt/openclaw/openclaw.mjs config set model.providers.openai.apiKey "$AI_API_KEY"
+      [ -n "$AI_BASE_URL" ] && sudo node /opt/openclaw/openclaw.mjs config set model.providers.openai.baseURL "$AI_BASE_URL"
+      [ -n "$AI_MODEL" ] && sudo node /opt/openclaw/openclaw.mjs config set model.default "$AI_MODEL"
+      print_ok "API Key 已寫入設定"
+      ;;
+  esac
 fi
 
 # 設定 LINE Bot
