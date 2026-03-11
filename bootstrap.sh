@@ -478,7 +478,7 @@ After=network.target
 
 [Service]
 Type=simple
-User=${SERVICE_USER}
+User=root
 WorkingDirectory=${INSTALL_DIR}
 ExecStart=/usr/bin/node /opt/openclaw/openclaw.mjs gateway
 Restart=always
@@ -492,12 +492,31 @@ EOF
 
 sudo systemctl daemon-reload
 sudo systemctl enable openclaw -q
-sudo systemctl start openclaw
-sleep 3
-print_ok "systemd 服務啟動完成"
-# Configure openclaw
+
+# 修正 LINE plugin 權限
+sudo chown -R root:root "${INSTALL_DIR}/extensions" 2>/dev/null || true
+
+# 設定 gateway.mode
 sudo node /opt/openclaw/openclaw.mjs setup
 sudo node /opt/openclaw/openclaw.mjs config set gateway.mode local
+
+# 設定 Anthropic API Key
+if [ -n "$AI_API_KEY" ] && [ "$AI_PROVIDER" = "claude" ]; then
+  sudo node /opt/openclaw/openclaw.mjs config set model.providers.anthropic.apiKey "$AI_API_KEY"
+  print_ok "Claude API Key 已寫入設定"
+fi
+
+# 設定 LINE Bot
+if [ -n "$LINE_CHANNEL_SECRET" ] && [ -n "$LINE_ACCESS_TOKEN" ]; then
+  sudo node /opt/openclaw/openclaw.mjs config set channels.line.enabled true
+  sudo node /opt/openclaw/openclaw.mjs config set channels.line.channelSecret "$LINE_CHANNEL_SECRET"
+  sudo node /opt/openclaw/openclaw.mjs config set channels.line.accessToken "$LINE_ACCESS_TOKEN"
+  print_ok "LINE Bot 設定已寫入"
+fi
+
+sudo systemctl start openclaw
+sleep 5
+print_ok "systemd 服務啟動完成"
 
 # ── 安裝所有 Skill ────────────────────────────────────
 echo -e "  🦞 安裝 C01–C10 通用基礎 Skill..."
