@@ -17,7 +17,8 @@ NC='\033[0m'
 INSTALL_DIR="/opt/openclaw"
 SERVICE_USER="openclaw"
 OPENCLAW_REPO="https://github.com/openclaw/openclaw.git"
-SKILLS_REPO=""  # 安裝時由學員輸入存取碼後動態產生
+SKILLS_TOKEN=""   # 安裝過程中由學員輸入
+SKILLS_REPO=""    # 取得 PAT 後動態組合
 
 # =============================================================================
 # 工具函數
@@ -88,65 +89,68 @@ echo ""
 read -p "  按 Enter 開始安裝 ..."
 
 # =============================================================================
-# 第零步：輸入 Skills 存取碼
+# 第零步：輸入 Skills GitHub PAT
 # =============================================================================
-print_step "第零步：輸入 Skills 存取碼"
+print_step "第零步：輸入課程 Skills 存取金鑰"
 
-echo -e "  酒Ann 課程學員專屬步驟。"
-echo -e "  請輸入老師在課程群組提供的 ${BOLD}Skills 存取碼${NC}。"
-echo ""
-echo -e "  ${DIM}（存取碼格式：github_pat_ 開頭的一串英數字）${NC}"
+echo -e "  安裝 Skills 需要你的 GitHub PAT（課程金鑰）"
+echo -e "  ${DIM}Joanna 會在課程群組提供你專屬的 PAT${NC}"
+echo -e "  ${DIM}格式像：github_pat_11Axxxxxxxx...${NC}"
 echo ""
 
 while true; do
-  ask_secret "Skills 存取碼" SKILLS_TOKEN
+  ask_secret "請貼上你的 GitHub PAT" SKILLS_TOKEN
   if [[ "$SKILLS_TOKEN" == github_pat_* ]]; then
-    SKILLS_REPO="https://${SKILLS_TOKEN}@github.com/Joanna8521/openclaw_ecom.git"
-    print_ok "存取碼格式正確"
+    print_ok "PAT 格式正確"
     break
-  elif [ -z "$SKILLS_TOKEN" ]; then
-    print_err "存取碼不能為空，請重新輸入"
-    echo -e "  ${DIM}如果還沒有存取碼，請先向酒Ann 取得後再執行安裝。${NC}"
+  elif [[ -n "$SKILLS_TOKEN" ]]; then
+    print_warn "格式不對，PAT 應以 github_pat_ 開頭，請重新貼上"
   else
-    print_warn "格式不對，存取碼應以 github_pat_ 開頭，請重新確認"
+    print_warn "PAT 不能為空，請重新輸入"
   fi
 done
+
+# 組合 SKILLS_REPO
+SKILLS_REPO="https://${SKILLS_TOKEN}@github.com/Joanna8521/openclaw_ecom.git"
+
+# 先存到環境變數檔，install_skill.sh 之後也能讀到
+sudo mkdir -p /etc
+sudo touch /etc/openclaw.env
+sudo chmod 600 /etc/openclaw.env
+# 移除舊的（如果重裝）
+sudo sed -i '/^GITHUB_PAT=/d' /etc/openclaw.env 2>/dev/null || true
+echo "GITHUB_PAT=${SKILLS_TOKEN}" | sudo tee -a /etc/openclaw.env > /dev/null
+print_ok "PAT 已安全儲存到 /etc/openclaw.env"
 
 # =============================================================================
 # 第一步：選擇 AI 引擎
 # =============================================================================
 print_step "第一步：選擇你的 AI 引擎"
 
-echo -e "  OpenClaw 支援多種 AI 引擎，請選擇你要使用的："
+echo -e "  OpenClaw 支援三種 AI 引擎，請選擇你要使用的："
 echo ""
-echo -e "  ${BOLD}1.  Claude${NC}      （Anthropic，推薦，繁體中文最佳）"
-echo -e "  ${BOLD}2.  Gemini${NC}      （Google，有免費方案）"
-echo -e "  ${BOLD}3.  OpenAI${NC}      （GPT-4o，最廣泛使用）"
-echo -e "  ${BOLD}4.  DeepSeek${NC}    （中國模型，性價比高）"
-echo -e "  ${BOLD}5.  Kimi${NC}        （Moonshot AI，長上下文）"
-echo -e "  ${BOLD}6.  MiniMax${NC}     （MiniMax，多模態支援）"
-echo -e "  ${BOLD}7.  自訂${NC}        （OpenAI 相容 API）"
-echo -e "  ${BOLD}8.  暫時跳過${NC}    （之後再設定）"
+echo -e "  ${BOLD}1.  Claude${NC}  （Anthropic，推薦，理解繁體中文最佳）"
+echo -e "  ${BOLD}2.  Gemini${NC}  （Google，有免費方案）"
+echo -e "  ${BOLD}3.  OpenAI${NC}  （GPT-4，最廣泛使用）"
+echo -e "  ${BOLD}4.  暫時跳過${NC}（之後在 LINE 對話裡設定）"
 echo ""
 
 while true; do
-  ask "請輸入選項（1-8）" AI_CHOICE
+  ask "請輸入選項（1-4）" AI_CHOICE
   case "$AI_CHOICE" in
-    1|2|3|4|5|6|7|8) break ;;
-    *) print_warn "請輸入 1 到 8 的數字" ;;
+    1|2|3|4) break ;;
+    *) print_warn "請輸入 1、2、3 或 4" ;;
   esac
 done
 
 AI_PROVIDER=""
 AI_API_KEY=""
-AI_BASE_URL=""
-AI_MODEL=""
 
 case "$AI_CHOICE" in
   1)
-    AI_PROVIDER="anthropic"
+    AI_PROVIDER="claude"
     echo ""
-    echo -e "  ${DIM}Claude API Key 取得：https://console.anthropic.com/${NC}"
+    echo -e "  ${DIM}Claude API Key 取得方式：https://console.anthropic.com/${NC}"
     echo -e "  ${DIM}格式以 sk-ant- 開頭${NC}"
     echo ""
     while true; do
@@ -155,7 +159,8 @@ case "$AI_CHOICE" in
         print_ok "Claude API Key 格式正確"
         break
       else
-        print_warn "格式不對，應以 sk-ant- 開頭"
+        print_warn "格式不對，Claude Key 應以 sk-ant- 開頭，請重新輸入"
+        echo -e "  ${DIM}（如果還沒有，按 Enter 跳過，之後再設定）${NC}"
         read -s -p "  ➤ Claude API Key（留空跳過）：" AI_API_KEY
         echo ""
         [ -z "$AI_API_KEY" ] && break
@@ -163,9 +168,9 @@ case "$AI_CHOICE" in
     done
     ;;
   2)
-    AI_PROVIDER="google"
+    AI_PROVIDER="gemini"
     echo ""
-    echo -e "  ${DIM}Gemini API Key 取得：https://aistudio.google.com/app/apikey${NC}"
+    echo -e "  ${DIM}Gemini API Key 取得方式：https://aistudio.google.com/app/apikey${NC}"
     echo -e "  ${DIM}格式以 AIza 開頭${NC}"
     echo ""
     while true; do
@@ -174,7 +179,7 @@ case "$AI_CHOICE" in
         print_ok "Gemini API Key 格式正確"
         break
       else
-        print_warn "格式不對，應以 AIza 開頭"
+        print_warn "格式不對，Gemini Key 應以 AIza 開頭，請重新輸入"
         read -s -p "  ➤ Gemini API Key（留空跳過）：" AI_API_KEY
         echo ""
         [ -z "$AI_API_KEY" ] && break
@@ -184,7 +189,7 @@ case "$AI_CHOICE" in
   3)
     AI_PROVIDER="openai"
     echo ""
-    echo -e "  ${DIM}OpenAI API Key 取得：https://platform.openai.com/api-keys${NC}"
+    echo -e "  ${DIM}OpenAI API Key 取得方式：https://platform.openai.com/api-keys${NC}"
     echo -e "  ${DIM}格式以 sk- 開頭${NC}"
     echo ""
     while true; do
@@ -193,7 +198,7 @@ case "$AI_CHOICE" in
         print_ok "OpenAI API Key 格式正確"
         break
       else
-        print_warn "格式不對，應以 sk- 開頭"
+        print_warn "格式不對，OpenAI Key 應以 sk- 開頭，請重新輸入"
         read -s -p "  ➤ OpenAI API Key（留空跳過）：" AI_API_KEY
         echo ""
         [ -z "$AI_API_KEY" ] && break
@@ -201,71 +206,8 @@ case "$AI_CHOICE" in
     done
     ;;
   4)
-    AI_PROVIDER="openai"
-    AI_BASE_URL="https://api.deepseek.com"
-    AI_MODEL="deepseek-chat"
-    echo ""
-    echo -e "  ${DIM}DeepSeek API Key 取得：https://platform.deepseek.com/${NC}"
-    echo -e "  ${DIM}格式以 sk- 開頭${NC}"
-    echo ""
-    while true; do
-      ask_secret "DeepSeek API Key" AI_API_KEY
-      if [[ "$AI_API_KEY" == sk-* ]]; then
-        print_ok "DeepSeek API Key 格式正確"
-        break
-      else
-        print_warn "格式不對，應以 sk- 開頭"
-        read -s -p "  ➤ DeepSeek API Key（留空跳過）：" AI_API_KEY
-        echo ""
-        [ -z "$AI_API_KEY" ] && break
-      fi
-    done
-    ;;
-  5)
-    AI_PROVIDER="openai"
-    AI_BASE_URL="https://api.moonshot.cn/v1"
-    AI_MODEL="moonshot-v1-128k"
-    echo ""
-    echo -e "  ${DIM}Kimi API Key 取得：https://platform.moonshot.cn/${NC}"
-    echo -e "  ${DIM}格式以 sk- 開頭${NC}"
-    echo ""
-    while true; do
-      ask_secret "Kimi API Key" AI_API_KEY
-      if [[ "$AI_API_KEY" == sk-* ]]; then
-        print_ok "Kimi API Key 格式正確"
-        break
-      else
-        print_warn "格式不對，應以 sk- 開頭"
-        read -s -p "  ➤ Kimi API Key（留空跳過）：" AI_API_KEY
-        echo ""
-        [ -z "$AI_API_KEY" ] && break
-      fi
-    done
-    ;;
-  6)
-    AI_PROVIDER="openai"
-    AI_BASE_URL="https://api.minimax.chat/v1"
-    AI_MODEL="abab6.5s-chat"
-    echo ""
-    echo -e "  ${DIM}MiniMax API Key 取得：https://api.minimax.chat/${NC}"
-    echo -e "  ${DIM}格式以 eyJ 開頭${NC}"
-    echo ""
-    ask_secret "MiniMax API Key" AI_API_KEY
-    [ -n "$AI_API_KEY" ] && print_ok "MiniMax API Key 已輸入"
-    ;;
-  7)
-    AI_PROVIDER="openai"
-    echo ""
-    echo -e "  ${DIM}任何相容 OpenAI API 格式的服務都可以用（如 Ollama、Azure OpenAI 等）${NC}"
-    echo ""
-    ask "API Base URL（例如 http://localhost:11434/v1）" AI_BASE_URL
-    ask "Model 名稱（例如 llama3）" AI_MODEL
-    ask_secret "API Key（沒有可留空）" AI_API_KEY
-    print_ok "自訂 API 設定完成"
-    ;;
-  8)
     AI_PROVIDER="pending"
-    print_warn "跳過，安裝完成後可重新執行 sudo node /opt/openclaw/openclaw.mjs configure 來設定"
+    print_warn "跳過 AI 金鑰，安裝完成後可在 LINE 對話輸入「/設定 AI金鑰」來設定"
     ;;
 esac
 
@@ -347,7 +289,7 @@ if [ "$GOOGLE_CHOICE" = "1" ]; then
     GOOGLE_CREDENTIALS_PATH=""
   fi
 else
-  print_warn "跳過 Google 設定，稍後可執行 node /opt/openclaw/openclaw.mjs setup 來設定"
+  print_warn "跳過 Google 設定，稍後可執行 python3 openclaw setup google 來設定"
 fi
 
 # =============================================================================
@@ -357,19 +299,16 @@ print_step "確認設定資訊"
 
 echo -e "  ${BOLD}安裝目錄：${NC}${INSTALL_DIR}"
 echo ""
+echo -e "  ${BOLD}Skills PAT：${NC}✅ 已輸入（儲存於 /etc/openclaw.env）"
+echo ""
 echo -e "  ${BOLD}AI 引擎：${NC}"
 case "$AI_CHOICE" in
-  1) echo -e "    Claude    $([ -n "$AI_API_KEY" ] && echo "✅ Key 已設定" || echo "⚠️  待設定")" ;;
-  2) echo -e "    Gemini    $([ -n "$AI_API_KEY" ] && echo "✅ Key 已設定" || echo "⚠️  待設定")" ;;
-  3) echo -e "    OpenAI    $([ -n "$AI_API_KEY" ] && echo "✅ Key 已設定" || echo "⚠️  待設定")" ;;
-  4) echo -e "    DeepSeek  $([ -n "$AI_API_KEY" ] && echo "✅ Key 已設定" || echo "⚠️  待設定")" ;;
-  5) echo -e "    Kimi      $([ -n "$AI_API_KEY" ] && echo "✅ Key 已設定" || echo "⚠️  待設定")" ;;
-  6) echo -e "    MiniMax   $([ -n "$AI_API_KEY" ] && echo "✅ Key 已設定" || echo "⚠️  待設定")" ;;
-  7) echo -e "    自訂 API  $([ -n "$AI_BASE_URL" ] && echo "✅ 已設定（$AI_BASE_URL）" || echo "⚠️  待設定")" ;;
-  8) echo -e "    ⚠️  待設定" ;;
+  1) echo -e "    Claude  $([ -n "$AI_API_KEY" ] && echo "✅ Key 已設定" || echo "⚠️  待設定")" ;;
+  2) echo -e "    Gemini  $([ -n "$AI_API_KEY" ] && echo "✅ Key 已設定" || echo "⚠️  待設定")" ;;
+  3) echo -e "    OpenAI  $([ -n "$AI_API_KEY" ] && echo "✅ Key 已設定" || echo "⚠️  待設定")" ;;
+  4) echo -e "    ⚠️  待設定" ;;
 esac
 echo ""
-echo -e "  ${BOLD}Skills 存取碼：${NC}✅ 已驗證（github_pat_****${SKILLS_TOKEN: -6})"
 echo -e "  ${BOLD}LINE Bot：${NC}$([ -n "$LINE_CHANNEL_SECRET" ] && echo "✅ 已設定" || echo "⚠️  待設定")"
 echo -e "  ${BOLD}Google：${NC}$([ -n "$GOOGLE_CREDENTIALS_PATH" ] && echo "✅ ${GOOGLE_CREDENTIALS_PATH}" || echo "⚠️  待設定")"
 echo ""
@@ -383,22 +322,24 @@ print_step "開始自動安裝（請勿關閉視窗）"
 # ── 系統套件 ──────────────────────────────────────────
 echo -e "  📦 更新系統套件..."
 sudo apt-get update -qq
-sudo apt-get install -y -qq git curl wget jq nginx certbot cron build-essential && \
-  curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash - && \
-  sudo apt-get install -y -qq nodejs 2>/dev/null || true
-sudo apt-get install -y -qq git curl wget jq nginx certbot cron build-essential 2>/dev/null || true
-# 安裝 Node.js 20 LTS（移除舊版衝突套件後安裝）
-if ! node -v 2>/dev/null | grep -q "v2[0-9]"; then
-  sudo apt-get remove -y libnode-dev libnode72 nodejs 2>/dev/null || true
-  curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash - 2>/dev/null
-  sudo apt-get install -y nodejs 2>/dev/null
-fi
+sudo apt-get install -y -qq \
+  python3 python3-pip python3-venv \
+  nodejs npm \
+  git curl wget jq \
+  nginx certbot \
+  cron build-essential 2>/dev/null
 print_ok "系統套件安裝完成"
 
 # ── Python 3.11 ───────────────────────────────────────
 echo -e "  🐍 確認 Python 3.11..."
-# Node.js installed above
-print_ok "Node.js $(node --version) 就緒"
+if ! python3 --version 2>/dev/null | grep -q "3.11"; then
+  sudo apt-get install -y -qq software-properties-common
+  sudo add-apt-repository ppa:deadsnakes/ppa -y
+  sudo apt-get update -qq
+  sudo apt-get install -y -qq python3.11 python3.11-venv python3.11-dev
+  sudo update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1
+fi
+print_ok "Python $(python3 --version) 就緒"
 
 # ── 服務使用者 ────────────────────────────────────────
 if ! id "$SERVICE_USER" &>/dev/null; then
@@ -410,10 +351,9 @@ fi
 echo -e "  📥 下載 OpenClaw 主程式..."
 sudo mkdir -p "$INSTALL_DIR"
 if [ -d "$INSTALL_DIR/.git" ]; then
-  sudo git -C "$INSTALL_DIR" pull -q 2>/dev/null || true
+  sudo -u "$SERVICE_USER" git -C "$INSTALL_DIR" pull -q
   print_ok "OpenClaw 主程式更新完成"
 else
-  sudo rm -rf "$INSTALL_DIR"
   sudo git clone --quiet "$OPENCLAW_REPO" "$INSTALL_DIR"
   sudo chown -R "$SERVICE_USER:$SERVICE_USER" "$INSTALL_DIR"
   print_ok "OpenClaw 主程式下載完成"
@@ -424,10 +364,9 @@ echo -e "  📥 下載 98 個 Skill..."
 SKILLS_DIR="$INSTALL_DIR/skills"
 sudo mkdir -p "$SKILLS_DIR"
 if [ -d "$SKILLS_DIR/.git" ]; then
-  sudo git -C "$SKILLS_DIR" pull -q 2>/dev/null || true
+  sudo -u "$SERVICE_USER" git -C "$SKILLS_DIR" pull -q
   print_ok "Skills 更新完成"
 else
-  sudo rm -rf "$SKILLS_DIR"
   sudo git clone --quiet "$SKILLS_REPO" "$SKILLS_DIR"
   sudo chown -R "$SERVICE_USER:$SERVICE_USER" "$SKILLS_DIR"
   print_ok "98 個 Skill 下載完成"
@@ -435,19 +374,49 @@ fi
 
 # ── Python 虛擬環境 ───────────────────────────────────
 echo -e "  🐍 建立 Python 虛擬環境..."
-# Install Node deps and build
-cd "$INSTALL_DIR"
-# 安裝相依套件
-cd "$INSTALL_DIR"
-sudo npm install --quiet 2>/dev/null || true
-sudo npm run build --quiet 2>/dev/null || true
+sudo -u "$SERVICE_USER" python3 -m venv "$INSTALL_DIR/venv"
+sudo -u "$SERVICE_USER" "$INSTALL_DIR/venv/bin/pip" install --upgrade pip -q
+sudo -u "$SERVICE_USER" "$INSTALL_DIR/venv/bin/pip" install \
+  -r "$INSTALL_DIR/requirements.txt" -q
 print_ok "Python 套件安裝完成"
 
 # ── 設定檔 ────────────────────────────────────────────
 echo -e "  🔑 寫入設定檔..."
 sudo mkdir -p "$INSTALL_DIR/config"
 
-# 先計算各 AI key 值
+sudo tee "$INSTALL_DIR/config/config.yml" > /dev/null << EOF
+# OpenClaw 設定檔
+# 修改後執行 sudo systemctl restart openclaw 生效
+
+# ── AI 引擎設定 ──────────────────────────────────────
+ai:
+  provider: "${AI_PROVIDER}"     # claude / gemini / openai / pending
+  claude_api_key: "${AI_PROVIDER == "claude" && echo "$AI_API_KEY" || echo ""}"
+  gemini_api_key: "${AI_PROVIDER == "gemini" && echo "$AI_API_KEY" || echo ""}"
+  openai_api_key: "${AI_PROVIDER == "openai" && echo "$AI_API_KEY" || echo ""}"
+
+# ── LINE Bot 設定 ────────────────────────────────────
+line:
+  channel_secret: "${LINE_CHANNEL_SECRET}"
+  access_token: "${LINE_ACCESS_TOKEN}"
+
+# ── Google 服務設定 ──────────────────────────────────
+google:
+  credentials_path: "${GOOGLE_CREDENTIALS_PATH}"
+
+# ── Skills 路徑 ──────────────────────────────────────
+skills:
+  path: "${INSTALL_DIR}/skills"
+  enabled: true
+
+# ── 伺服器設定 ───────────────────────────────────────
+server:
+  host: "0.0.0.0"
+  port: 5000
+  workers: 2
+EOF
+
+# 修正 YAML 裡 bash 條件判斷語法（直接用已設好的變數）
 sudo tee "$INSTALL_DIR/config/config.yml" > /dev/null << EOF
 # OpenClaw 設定檔
 # 修改後執行 sudo systemctl restart openclaw 生效
@@ -471,7 +440,7 @@ skills:
 
 server:
   host: "0.0.0.0"
-  port: 18789
+  port: 5000
   workers: 2
 EOF
 
@@ -500,7 +469,7 @@ server {
 
     # LINE Webhook
     location /webhook {
-        proxy_pass http://127.0.0.1:18789/webhook;
+        proxy_pass http://127.0.0.1:5000/webhook;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
@@ -510,7 +479,7 @@ server {
 
     # API
     location /api/ {
-        proxy_pass http://127.0.0.1:18789/api/;
+        proxy_pass http://127.0.0.1:5000/api/;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_read_timeout 60s;
@@ -518,7 +487,7 @@ server {
 
     # 健康檢查
     location /health {
-        proxy_pass http://127.0.0.1:18789/health;
+        proxy_pass http://127.0.0.1:5000/health;
     }
 
     location / {
@@ -550,9 +519,9 @@ After=network.target
 
 [Service]
 Type=simple
-User=root
+User=${SERVICE_USER}
 WorkingDirectory=${INSTALL_DIR}
-ExecStart=/usr/bin/node /opt/openclaw/openclaw.mjs gateway
+ExecStart=${INSTALL_DIR}/venv/bin/python main.py
 Restart=always
 RestartSec=5
 StandardOutput=journal
@@ -564,59 +533,23 @@ EOF
 
 sudo systemctl daemon-reload
 sudo systemctl enable openclaw -q
-
-# 修正 LINE plugin 權限
-sudo chown -R root:root "${INSTALL_DIR}/extensions" 2>/dev/null || true
-
-# 設定 gateway.mode
-sudo node /opt/openclaw/openclaw.mjs setup
-sudo node /opt/openclaw/openclaw.mjs config set gateway.mode local
-
-# 寫入 AI 設定
-if [ -n "$AI_API_KEY" ]; then
-  case "$AI_PROVIDER" in
-    anthropic)
-      sudo node /opt/openclaw/openclaw.mjs config set model.providers.anthropic.apiKey "$AI_API_KEY"
-      print_ok "Claude API Key 已寫入設定"
-      ;;
-    google)
-      sudo node /opt/openclaw/openclaw.mjs config set model.providers.google.apiKey "$AI_API_KEY"
-      print_ok "Gemini API Key 已寫入設定"
-      ;;
-    openai)
-      sudo node /opt/openclaw/openclaw.mjs config set model.providers.openai.apiKey "$AI_API_KEY"
-      [ -n "$AI_BASE_URL" ] && sudo node /opt/openclaw/openclaw.mjs config set model.providers.openai.baseURL "$AI_BASE_URL"
-      [ -n "$AI_MODEL" ] && sudo node /opt/openclaw/openclaw.mjs config set model.default "$AI_MODEL"
-      print_ok "API Key 已寫入設定"
-      ;;
-  esac
-fi
-
-# 設定 LINE Bot
-if [ -n "$LINE_CHANNEL_SECRET" ] && [ -n "$LINE_ACCESS_TOKEN" ]; then
-  sudo node /opt/openclaw/openclaw.mjs config set channels.line.enabled true
-  sudo node /opt/openclaw/openclaw.mjs config set channels.line.channelSecret "$LINE_CHANNEL_SECRET"
-  sudo node /opt/openclaw/openclaw.mjs config set channels.line.accessToken "$LINE_ACCESS_TOKEN"
-  print_ok "LINE Bot 設定已寫入"
-fi
-
 sudo systemctl start openclaw
-sleep 5
+sleep 3
 print_ok "systemd 服務啟動完成"
 
 # ── 安裝所有 Skill ────────────────────────────────────
 echo -e "  🦞 安裝 C01–C10 通用基礎 Skill..."
 sudo -u "$SERVICE_USER" \
-  node /opt/openclaw/openclaw.mjs install \
+  "$INSTALL_DIR/venv/bin/python3" openclaw install \
   c01 c02 c03 c04 c05 c06 c07 c08 c09 c10 -q 2>/dev/null && \
   print_ok "C01–C10 安裝完成" || \
-  print_warn "C01–C10 安裝遇到問題，稍後可手動執行 node /opt/openclaw/openclaw.mjs install c01 c02 ..."
+  print_warn "C01–C10 安裝遇到問題，稍後可手動執行 python3 openclaw install c01 c02 ..."
 
 echo -e "  🦞 安裝 E01–E88 電商 Skill（約 2–3 分鐘）..."
 sudo -u "$SERVICE_USER" \
-  node /opt/openclaw/openclaw.mjs install --all-ecom -q 2>/dev/null && \
+  "$INSTALL_DIR/venv/bin/python3" openclaw install --all-ecom -q 2>/dev/null && \
   print_ok "E01–E88 安裝完成" || \
-  print_warn "E01–E88 安裝遇到問題，稍後可手動執行 node /opt/openclaw/openclaw.mjs install --all-ecom"
+  print_warn "E01–E88 安裝遇到問題，稍後可手動執行 python3 openclaw install --all-ecom"
 
 # ── 健康檢查 ──────────────────────────────────────────
 echo -e "  🔍 健康檢查..."
@@ -626,7 +559,7 @@ NGINX_STATUS=$(sudo systemctl is-active nginx 2>/dev/null)
 HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
   --max-time 5 "http://127.0.0.1/health" 2>/dev/null || echo "000")
 SKILL_COUNT=$(sudo -u "$SERVICE_USER" \
-  node /opt/openclaw/openclaw.mjs list 2>/dev/null | \
+  "$INSTALL_DIR/venv/bin/python3" openclaw list 2>/dev/null | \
   grep -c "✅" || echo "0")
 
 # =============================================================================
@@ -685,27 +618,13 @@ echo ""
 echo -e "  ${DIM}查看龍蝦狀態    sudo systemctl status openclaw${NC}"
 echo -e "  ${DIM}重新啟動龍蝦    sudo systemctl restart openclaw${NC}"
 echo -e "  ${DIM}查看即時 log    sudo journalctl -u openclaw -f${NC}"
-echo -e "  ${DIM}查看所有 Skill  node /opt/openclaw/openclaw.mjs list${NC}"
+echo -e "  ${DIM}查看所有 Skill  python3 openclaw list${NC}"
 echo -e "  ${DIM}更新 Skills     cd ${INSTALL_DIR}/skills && git pull${NC}"
 echo -e "  ${DIM}更新主程式      cd ${INSTALL_DIR} && git pull${NC}"
 echo ""
 echo -e "  ${BOLD}── 測試龍蝦是否正常 ──────────────────────────${NC}"
 echo ""
-echo -e "  ${DIM}curl -X POST http://localhost:18789/chat \\${NC}"
+echo -e "  ${DIM}curl -X POST http://localhost:5000/chat \\${NC}"
 echo -e "  ${DIM}  -H 'Content-Type: application/json' \\${NC}"
 echo -e "  ${DIM}  -d '{\"message\": \"你好\"}'${NC}"
-echo ""
-echo -e "  ${BOLD}── ⚠️  重要：Oracle 安全清單設定 ───────────────${NC}"
-echo ""
-echo -e "  ${YELLOW}LINE Webhook 要能連進來，還需要在 Oracle 控制台手動開放 Port 80：${NC}"
-echo ""
-echo -e "  ${DIM}1. 登入 Oracle Cloud 控制台${NC}"
-echo -e "  ${DIM}2. 漢堡選單 → Networking → Virtual Cloud Networks${NC}"
-echo -e "  ${DIM}3. 點擊你的 VCN → Security Lists → Default Security List${NC}"
-echo -e "  ${DIM}4. Add Ingress Rules：${NC}"
-echo -e "  ${DIM}   Source CIDR：0.0.0.0/0${NC}"
-echo -e "  ${DIM}   Destination Port Range：80${NC}"
-echo -e "  ${DIM}5. 點 Add Ingress Rules 儲存${NC}"
-echo ""
-echo -e "  ${YELLOW}做完這步，LINE Webhook 才能正常接收訊息。${NC}"
 echo ""
