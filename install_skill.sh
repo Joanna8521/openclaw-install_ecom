@@ -31,27 +31,44 @@ echo ""
 
 # ── 確認 PAT ────────────────────────────────────────────────────────────────
 PAT=""
+ENV_FILE="/etc/openclaw.env"
 
 # 先從環境變數找
 if [[ -n "${GITHUB_PAT:-}" ]]; then
   PAT="$GITHUB_PAT"
+  ok "使用環境變數中的 PAT"
 fi
 
-# 再從 openclaw 設定找
-if [[ -z "$PAT" ]]; then
-  ENV_FILE="/etc/openclaw.env"
-  if [[ -f "$ENV_FILE" ]]; then
-    PAT=$(grep "^GITHUB_PAT=" "$ENV_FILE" 2>/dev/null | cut -d= -f2 || echo "")
-  fi
+# 再從 /etc/openclaw.env 找
+if [[ -z "$PAT" && -f "$ENV_FILE" ]]; then
+  PAT=$(grep "^GITHUB_PAT=" "$ENV_FILE" 2>/dev/null | cut -d= -f2 || echo "")
+  [[ -n "$PAT" ]] && ok "從 /etc/openclaw.env 讀取 PAT"
 fi
 
 # 還是找不到，請學員輸入
 if [[ -z "$PAT" ]]; then
-  echo "  需要 GitHub PAT 來下載 skill 檔案"
-  echo "  （就是當初 bootstrap 時填入的那組 token）"
   echo ""
-  read -rp "  請貼上 GitHub PAT: " PAT
-  [[ -z "$PAT" ]] && err "PAT 不能為空"
+  warn "找不到 GitHub PAT，需要手動輸入"
+  echo "  ${DIM}（Joanna 在課程群組提供的 github_pat_ 開頭的 token）${NC}"
+  echo ""
+  while true; do
+    read -rs -p "  請貼上 GitHub PAT: " PAT
+    echo ""
+    if [[ "$PAT" == github_pat_* ]]; then
+      ok "PAT 格式正確"
+      # 存起來，下次就不用再問了
+      sudo touch "$ENV_FILE"
+      sudo chmod 600 "$ENV_FILE"
+      sudo sed -i '/^GITHUB_PAT=/d' "$ENV_FILE" 2>/dev/null || true
+      echo "GITHUB_PAT=${PAT}" | sudo tee -a "$ENV_FILE" > /dev/null
+      ok "PAT 已儲存到 $ENV_FILE"
+      break
+    elif [[ -z "$PAT" ]]; then
+      warn "PAT 不能為空，請重新輸入"
+    else
+      warn "格式不對，PAT 應以 github_pat_ 開頭，請重新輸入"
+    fi
+  done
 fi
 
 # ── 確認 skills 目錄存在 ────────────────────────────────────────────────────
