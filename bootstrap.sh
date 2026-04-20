@@ -233,8 +233,8 @@ node "$INSTALL_DIR/openclaw.mjs" config set gateway.port 18789 2>/dev/null || tr
 # Skills 目錄
 node "$INSTALL_DIR/openclaw.mjs" config set skills.load.extraDirs '["/root/.openclaw/skills"]' 2>/dev/null || true
 
-# Persona systemPrompt（讓所有 Skill 自動帶入學員店家背景）
-PERSONA_PROMPT='你是電商賣家的 AI 龍蝦助理。每次對話開始前，請先讀取 /root/.openclaw/workspace/persona.json 的內容（如果存在），根據學員的店名、主要銷售平台、商品類別、競品和目標客群來客製化建議。如果 persona.json 不存在，請引導學員執行 /d01 完成入學診斷。數據優先：有數字就給數字，不要只說「不錯」「還好」。推播廣告文案前先給學員看確認，不自行發送。'
+# Persona systemPrompt（讓所有 Skill 自動帶入學員店家背景與長期記憶）
+PERSONA_PROMPT='你是電商賣家的 AI 龍蝦助理「小龍蝦」。每次對話開始前必讀 /root/.openclaw/workspace/MEMORY.md，這是學員的長期記憶檔案，記錄了店家資訊、溝通偏好、常用資源和工作規則；所有建議都要依照這份記憶客製化。記憶分工：「我的店」區塊由 d02-brand-manager 技能自動管理（學員說「新增品牌」「切換品牌」「品牌列表」「/brand」時呼叫），其他區塊由 c00-memory 技能管理（學員說「記得...」「忘記...」「更新我的...」「你記得什麼」「清空記憶」時呼叫）。兩個記憶技能都不要自己寫檔，一律派遣對應 skill 處理。如果「我的店」顯示「【尚未設定，請輸入 /brand new 建立品牌】」，引導學員執行 /d01 入學診斷或 /brand new 建立第一個品牌。基本原則：數據優先（有數字就給數字，不要只說「不錯」「還好」）；寄信、發推播、刪資料等重要操作執行前先給學員確認；競品降價超過 10% 或負評出現時主動提醒，不等定時報告。'
 node "$INSTALL_DIR/openclaw.mjs" config set agents.defaults.systemPrompt "$PERSONA_PROMPT" 2>/dev/null || true
 
 # ── AI 引擎設定（環境變數 + paste-token 雙保險）────────────────────────────
@@ -326,12 +326,93 @@ else
   fi
 fi
 
-# 建立 persona.json 空白模板（D01 診斷後會填入內容）
+# 建立 MEMORY.md 長期記憶檔案（龍蝦每次對話會讀這個檔）
 mkdir -p "$WORKSPACE_DIR"
+if [ ! -f "$WORKSPACE_DIR/MEMORY.md" ]; then
+  cat > "$WORKSPACE_DIR/MEMORY.md" << 'MEMORY_EOF'
+# 龍蝦記憶檔案
+# 路徑：~/.openclaw/workspace/MEMORY.md
+# 說明：這是龍蝦的長期記憶，每次對話都會讀取這些資訊
+#
+# ⚠️ 「我的店」區塊由 D02（/brand use）自動管理，請勿手動修改格式
+#     其他區塊可以自由編輯
+
+---
+
+## 基本資料
+
+- 姓名/稱呼：【填入你希望龍蝦怎麼稱呼你】
+- 時區：Asia/Taipei（UTC+8）
+- 主要工作：電商賣家
+
+## 我的店
+
+- 店名：【尚未設定，請輸入 /brand new 建立品牌】
+- 品牌代稱：
+- 主要銷售平台：
+- 主要商品類別：
+- 價位帶：
+- 目標客群：
+- 品牌語氣：
+- 核心賣點（USP）：
+- 禁用詞：
+- 主要競品：
+- 旺季：
+- 客服時段：
+- 退換貨政策：
+- 品牌備註：
+
+## 溝通偏好
+
+- 語言：繁體中文
+- 回答風格：簡短直接，不要廢話，重點先說
+- 數字優先：有數據就給數據，不要只說「不錯」「還好」
+- 確認機制：寄信、刪資料、寄出訊息等重要操作，執行前一定先給我確認
+
+## 每日任務設定
+
+- 每日報告時間：早上 08:00
+- 推送頻道：【Telegram / LINE / 兩個都要，填你用的】
+- 報告內容：營收快報、競品異動、待處理負評
+
+## 常用 Google 資源
+
+- 競品監控試算表：【填入 Google Sheets URL】
+- 每日報告試算表：【填入 Google Sheets URL】
+- 素材資料夾：【填入 Google Drive 資料夾 URL】
+
+## 工作規則
+
+- 推播廣告文案前先給我看，確認後才發
+- 分析數據時附上「建議下一步行動」，不要只列數字
+- 發現競品降價超過 10%，立刻通知我，不用等定時報告
+- 負評出現後 1 小時內提醒我，附上建議回覆草稿
+
+## 不需要記的事
+
+- 每次對話的閒聊內容
+- 已解決的一次性問題
+- 過期的促銷活動資訊
+MEMORY_EOF
+  chmod 600 "$WORKSPACE_DIR/MEMORY.md"
+  print_ok "MEMORY.md 長期記憶檔建立完成"
+fi
+
+# 建立 memory_changelog.md（c00-memory 技能每次修改都會在這裡附一行）
+if [ ! -f "$WORKSPACE_DIR/memory_changelog.md" ]; then
+  cat > "$WORKSPACE_DIR/memory_changelog.md" << 'CHANGELOG_EOF'
+# 記憶變更紀錄
+# 每次 c00-memory 技能修改 MEMORY.md 都會在此附一行
+
+CHANGELOG_EOF
+  chmod 600 "$WORKSPACE_DIR/memory_changelog.md"
+fi
+
+# 保留 persona.json（D01 入學診斷若產出結構化資料會寫到這裡，跟 MEMORY.md 並存）
 if [ ! -f "$WORKSPACE_DIR/persona.json" ]; then
   cat > "$WORKSPACE_DIR/persona.json" << 'PERSONA_EOF'
 {
-  "_note": "由 /d01 入學診斷自動填寫，請勿手動修改",
+  "_note": "D01 入學診斷自動填寫的結構化資料，MEMORY.md 是主記憶檔",
   "name": "",
   "shop_name": "",
   "platforms": [],
