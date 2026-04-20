@@ -579,6 +579,35 @@ if [ -n "$TG_TOKEN" ]; then
 fi
 
 # ── 完成 ──────────────────────────────────────────────────────────────────────
+
+# 平台自動偵測（用 cloud metadata endpoints）
+detect_cloud_platform() {
+  # GCP — 用 metadata.google.internal
+  if curl -s --max-time 2 -H "Metadata-Flavor: Google" \
+       http://metadata.google.internal/computeMetadata/v1/instance/id &>/dev/null; then
+    echo "gcp"; return
+  fi
+  # Oracle — 在 169.254.169.254 上有特定路徑 /opc/v2/
+  if curl -s --max-time 2 \
+       -H "Authorization: Bearer Oracle" \
+       http://169.254.169.254/opc/v2/instance/ 2>/dev/null | grep -q "displayName\|id"; then
+    echo "oracle"; return
+  fi
+  # Hetzner — metadata 在 /hetzner/v1/metadata/
+  if curl -s --max-time 2 \
+       http://169.254.169.254/hetzner/v1/metadata/instance-id 2>/dev/null | grep -qE "^[0-9]+$"; then
+    echo "hetzner"; return
+  fi
+  # AWS — 最通用的 169.254.169.254 會是它；放最後試，避免誤判
+  if curl -s --max-time 2 \
+       http://169.254.169.254/latest/meta-data/instance-id 2>/dev/null | grep -qE "^i-"; then
+    echo "aws"; return
+  fi
+  echo "unknown"
+}
+
+CLOUD_PLATFORM=$(detect_cloud_platform)
+
 echo ""
 echo -e "${BLUE}════════════════════════════════════════════${RESET}"
 echo -e "  🦞 OpenClaw 電商班 部署完成！"
@@ -589,11 +618,49 @@ echo "  • 傳送 /d01 給 Bot → 開始入學診斷，建立你的店家 pers
 [ -n "$LINE_TOKEN" ]  && echo "  • LINE Webhook：http://${PUBLIC_IP}/line/webhook"
 [ -z "$TG_TOKEN"   ] && echo "  • 需要 Telegram？隨時可以設定 channels.telegram.botToken 再重啟"
 echo "  • 需要 Discord？執行 setup_discord.sh"
+echo "  • 需要 GA4 自動串接？到 Bot 傳 /ga4 連接"
 echo ""
 echo "  已安裝 Skill 數量：${SKILL_COUNT_FINAL}"
+echo ""
+
+# 平台專屬注意事項
+case "$CLOUD_PLATFORM" in
+  oracle)
+    echo -e "  ${CYAN}☁️  偵測到平台：Oracle Cloud${RESET}"
+    echo -e "  ${YELLOW}⚠️  Oracle 注意事項：${RESET}"
+    echo "     • 重啟後 Public IP 會變，LINE webhook 網址要重新設定"
+    echo "     • 想固定 IP 可在 Oracle Console 把 Ephemeral Public IP 改成 Reserved"
+    echo "     • 永久免費帳號每個人只 1 台 A1 VM，砍掉就要重申請"
+    ;;
+  hetzner)
+    echo -e "  ${CYAN}☁️  偵測到平台：Hetzner Cloud${RESET}"
+    echo -e "  ${YELLOW}⚠️  Hetzner 注意事項：${RESET}"
+    echo "     • 關機 VM 仍會計費！真的不用請到 Hetzner console 按 Delete Server"
+    echo "     • Public IP 相對穩定（不像 Oracle 重啟會變）"
+    echo "     • 預算約 €3.79/月（NT\$140）"
+    ;;
+  aws)
+    echo -e "  ${CYAN}☁️  偵測到平台：AWS EC2${RESET}"
+    echo -e "  ${YELLOW}⚠️  AWS 注意事項：${RESET}"
+    echo "     • Stop 只是暫停 CPU 費用，EBS 磁碟仍計費（\$0.08/GB/月）"
+    echo "     • 想固定 IP 可申請 Elastic IP：使用中免費，未綁定實例才收費"
+    echo "     • 真的不用請 Terminate（包含刪磁碟）才會 0 費用"
+    ;;
+  gcp)
+    echo -e "  ${CYAN}☁️  偵測到平台：GCP Compute${RESET}"
+    echo -e "  ${YELLOW}⚠️  GCP 注意事項：${RESET}"
+    echo "     • Stop 只是暫停 CPU，Persistent Disk 仍計費"
+    echo "     • 新帳號 \$300 試用額度約夠 e2-medium 跑 3-4 個月"
+    echo "     • 試用期過後會自動停用（不會無預警扣款），但要記得處理"
+    ;;
+  *)
+    echo -e "  ${CYAN}☁️  平台：未偵測到（可能是本地 VM 或客製環境）${RESET}"
+    ;;
+esac
 echo ""
 echo "  常用指令："
 echo "  查看龍蝦狀態    sudo systemctl status openclaw"
 echo "  重新啟動龍蝦    sudo systemctl restart openclaw"
 echo "  查看即時 log    sudo journalctl -u openclaw -f"
+echo "  自助診斷        sudo bash diagnose.sh"
 echo ""
