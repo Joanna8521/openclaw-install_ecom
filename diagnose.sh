@@ -374,8 +374,47 @@ info "LINE Webhook URL：http://${PUBLIC_IP}/line/webhook"
 info "Telegram Webhook URL：http://${PUBLIC_IP}/telegram/webhook（通常用 pairing，不用設）"
 
 # ═════════════════════════════════════════════════════════════════════════════
-# 結尾摘要
+# 9. GA4 整合
 # ═════════════════════════════════════════════════════════════════════════════
+section "9｜GA4 整合"
+
+GA4_TOKEN_FILE="/root/.openclaw/google_ga4_token.json"
+if [ -f "$GA4_TOKEN_FILE" ]; then
+  PERM=$(stat -c "%a" "$GA4_TOKEN_FILE" 2>/dev/null)
+  if [ "$PERM" = "600" ]; then
+    ok "GA4 OAuth token 存在且權限 600"
+  else
+    warn "GA4 token 權限是 $PERM（應為 600）"
+  fi
+
+  # Property ID
+  PERSONA_PATH="$WORKSPACE_DIR/persona.json"
+  if [ -f "$PERSONA_PATH" ]; then
+    GA4_PID=$(grep -oP '"ga4_property_id"\s*:\s*"\K[^"]*' "$PERSONA_PATH" 2>/dev/null)
+    if [ -n "$GA4_PID" ]; then
+      if [[ "$GA4_PID" =~ ^[0-9]{9,12}$ ]]; then
+        ok "GA4 Property ID: $GA4_PID（格式正確）"
+      elif [[ "$GA4_PID" =~ ^G- ]]; then
+        fail "Property ID 是 Measurement ID（$GA4_PID）——GA4 Data API 不收這個，要的是 9 位數字。請重跑 /ga4 連接"
+      else
+        warn "Property ID 格式異常：$GA4_PID"
+      fi
+    else
+      warn "persona.json 缺 ga4_property_id 欄位。請跑 /ga4 連接"
+    fi
+  fi
+
+  # Python library 有沒有裝
+  if python3 -c "import google.analytics.data" 2>/dev/null; then
+    ok "google-analytics-data Python 套件已安裝"
+  else
+    fail "google-analytics-data 套件沒裝。執行 sudo pip install google-analytics-data google-auth-oauthlib"
+  fi
+else
+  info "GA4 未連接（可選設定）。要用 GA4 自動模式請在 Bot 傳 /ga4 連接"
+fi
+
+
 echo ""
 echo -e "${BOLD}${BLUE}════════════════════════════════════════════${RESET}"
 echo -e "${BOLD}  診斷摘要${RESET}"

@@ -180,8 +180,16 @@ apt-get update -qq
 print_info "安裝基礎套件..."
 apt-get install -y -qq \
   git curl wget jq nginx cron build-essential \
-  ca-certificates gnupg lsb-release unzip 2>/dev/null
+  ca-certificates gnupg lsb-release unzip \
+  python3 python3-pip 2>/dev/null
 print_ok "基礎套件安裝完成"
+
+# GA4 Data API Python 套件（c02-ga4-connect 用）
+print_info "安裝 GA4 Python 套件..."
+pip3 install --quiet google-analytics-data google-auth google-auth-oauthlib 2>/dev/null \
+  || pip3 install --quiet --break-system-packages google-analytics-data google-auth google-auth-oauthlib 2>/dev/null \
+  || print_warn "GA4 Python 套件安裝失敗，學員可稍後手動裝（跑 /ga4 連接 時會提示）"
+print_ok "GA4 Python 套件就緒"
 
 # ── STEP 3：Node.js v22 ──────────────────────────────────────────────────────
 section "STEP 3｜Node.js v22 安裝"
