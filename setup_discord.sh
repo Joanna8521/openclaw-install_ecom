@@ -27,6 +27,19 @@ section() {
   echo ""
 }
 
+# ── 必須是 root（才能寫 /root/.openclaw/.env 和改 config）─────────────────────
+if [ "$EUID" -ne 0 ]; then
+  err "請用 sudo 執行：sudo bash setup_discord.sh"
+fi
+
+# ── OpenClaw CLI 位置 ────────────────────────────────────────────────────────
+INSTALL_DIR="/opt/openclaw"
+OPENCLAW="/usr/bin/node ${INSTALL_DIR}/openclaw.mjs"
+
+if [ ! -f "${INSTALL_DIR}/openclaw.mjs" ]; then
+  err "找不到 ${INSTALL_DIR}/openclaw.mjs，請先執行 bootstrap.sh 完成基本安裝"
+fi
+
 # ── Banner ──────────────────────────────────────────────────────────────────
 clear
 echo -e "${BOLD}${CYAN}"
@@ -88,32 +101,35 @@ if [[ ${#DISCORD_TOKEN} -lt 50 ]]; then
 fi
 ok "Token 格式確認"
 
-# 寫入環境變數到 /etc/openclaw.env（與 LINE/TG token 同位置）
-ENV_FILE="/etc/openclaw.env"
+# 寫入環境變數到 /root/.openclaw/.env（OpenClaw 啟動時自動載入此檔）
+ENV_FILE="/root/.openclaw/.env"
+mkdir -p /root/.openclaw
 
 if [[ ! -f "$ENV_FILE" ]]; then
-  sudo touch "$ENV_FILE"
+  touch "$ENV_FILE"
+  chmod 600 "$ENV_FILE"
 fi
 
 # 移除舊的 Discord token（如果有）
-sudo sed -i '/^DISCORD_BOT_TOKEN=/d' "$ENV_FILE" 2>/dev/null || true
+sed -i '/^DISCORD_BOT_TOKEN=/d' "$ENV_FILE" 2>/dev/null || true
 
 # 寫入新 token
-echo "DISCORD_BOT_TOKEN=${DISCORD_TOKEN}" | sudo tee -a "$ENV_FILE" > /dev/null
+echo "DISCORD_BOT_TOKEN=${DISCORD_TOKEN}" >> "$ENV_FILE"
+chmod 600 "$ENV_FILE"
 ok "Token 已寫入 $ENV_FILE"
 
 # ── STEP 3：設定 OpenClaw config ─────────────────────────────────────────────
 section "STEP 3｜設定 OpenClaw Discord 頻道"
 
 info "設定 Discord token 來源..."
-openclaw config set channels.discord.token \
+$OPENCLAW config set channels.discord.token \
   --ref-provider default \
   --ref-source env \
   --ref-id DISCORD_BOT_TOKEN 2>/dev/null
 ok "Token 來源設定完成"
 
 info "啟用 Discord 頻道..."
-openclaw config set channels.discord.enabled true --strict-json 2>/dev/null
+$OPENCLAW config set channels.discord.enabled true --strict-json 2>/dev/null
 ok "Discord 頻道已啟用"
 
 # ── STEP 4：重啟服務 ──────────────────────────────────────────────────────────
@@ -146,7 +162,7 @@ if ! [[ "$PAIRING_CODE" =~ ^[0-9]{6}$ ]]; then
 fi
 
 info "執行配對..."
-if openclaw pairing approve discord "$PAIRING_CODE" 2>/dev/null; then
+if $OPENCLAW pairing approve discord "$PAIRING_CODE" 2>/dev/null; then
   ok "Discord 配對成功！"
 else
   echo ""
@@ -156,7 +172,7 @@ else
   echo "  • Discord Privacy Settings 未開啟 Direct Messages"
   echo ""
   echo "  手動配對指令："
-  echo "  openclaw pairing approve discord <配對碼>"
+  echo "  sudo node ${INSTALL_DIR}/openclaw.mjs pairing approve discord <配對碼>"
   exit 1
 fi
 
@@ -167,7 +183,7 @@ info "確認頻道狀態..."
 sleep 1
 
 # 嘗試列出已配對的頻道
-if openclaw pairing list 2>/dev/null | grep -q "discord"; then
+if $OPENCLAW pairing list 2>/dev/null | grep -q "discord"; then
   ok "Discord 已出現在配對清單"
 else
   warn "無法確認配對狀態，請在 Discord 傳訊息給 Bot 測試"
@@ -197,7 +213,7 @@ echo "  • 圖片截圖分析：直接傳圖 + 指令（例如 /e01 + 截圖）
 echo ""
 echo "  ── 進階設定（可選）────────────────────────"
 echo "  只想讓特定人使用（allowlist 模式）："
-echo '  openclaw config set channels.discord.dmPolicy allowlist'
+echo "  sudo node ${INSTALL_DIR}/openclaw.mjs config set channels.discord.dmPolicy allowlist"
 echo ""
 echo "  Server 特定頻道使用："
 echo "  修改 ~/.openclaw/openclaw.json 加入 guilds 設定"
